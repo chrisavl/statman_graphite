@@ -1,0 +1,12 @@
+{application, statman_graphite,
+ [
+  {description, ""},
+  {vsn, "0.1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, {statman_graphite_app, []}},
+  {env, []}
+ ]}.
