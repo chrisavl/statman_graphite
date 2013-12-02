@@ -18,7 +18,7 @@ the app. After that you just need to record some metrics with statman.
 
 You can use the `prefix` application variable to set a global prefix that will
 be prepended to all metrics before they are send to graphite. This is useful
-in a multi-node scenario or when using something like (hostedgraphite.com)[https://www.hostedgraphite.com].
+in a multi-node scenario or when using something like [hostedgraphite.com](https://www.hostedgraphite.com).
 
     > application:set_env(<<"my-api-key">>).
     > application:set_env(<<"my-api-key.", (list_to_binary(atom_to_list(node())))/binary>>).
