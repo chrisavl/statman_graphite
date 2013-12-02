@@ -54,7 +54,7 @@ handle_info({push, _Interval, 3}, State) ->
                              "max_retries"),
     {noreply, State};
 
-handle_info({push, Interval, Retries}, State) ->
+handle_info({timeout, Timer, {push, Interval, Retries}}, #state{timer = Timer} = State) ->
     {ok, Metrics} = statman_aggregator:get_window(Interval div 1000),
     Serialized = serialize_metrics(State#state.prefix, filter(Metrics)),
     {ok, NewSocket} = case push(Serialized, State#state.socket) of
