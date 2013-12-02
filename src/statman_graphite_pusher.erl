@@ -175,6 +175,8 @@ set_test_env() ->
     application:set_env(statman_graphite, port, 2003),
     ok.
 
+%% You can test it against GNU netcat by running:
+%% $ nc -v -l -p 2003
 push_test() ->
     ok = set_test_env(),
     {ok, _Pid} = statman_aggregator:start_link(),
