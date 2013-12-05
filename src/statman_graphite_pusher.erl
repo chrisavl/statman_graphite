@@ -32,7 +32,7 @@ init([]) ->
     {ok, Prefix} = application:get_env(statman_graphite, prefix),
     {ok, Host} = application:get_env(statman_graphite, host),
     {ok, Port} = application:get_env(statman_graphite, port),
-    Timer = erlang:start_timer(Interval, self(), {push, Interval, 0}),
+    Timer = erlang:start_timer(Interval, self(), {push, Interval}),
     {ok, Socket} = open_socket({Host, Port}),
     {ok, #state{timer = Timer,
                 prefix = Prefix,
@@ -49,13 +49,8 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 
-handle_info({push, _Interval, 3}, State) ->
-    error_logger:warning_msg("statman_graphite: failed to push to graphite: "
-                             "max_retries"),
-    {noreply, State};
-
-handle_info({timeout, Timer, {push, Interval, Retries}}, #state{timer = Timer} = State) ->
-    NewTimer = erlang:start_timer(Interval, self(), {push, Interval, 0}),
+handle_info({timeout, Timer, {push, Interval}}, #state{timer = Timer} = State) ->
+    NewTimer = erlang:start_timer(Interval, self(), {push, Interval}),
     {ok, Metrics} = statman_aggregator:get_window(Interval div 1000),
     Serialized = serialize_metrics(State#state.prefix, filter(Metrics)),
     {ok, NewSocket} = case push(Serialized, State#state.socket) of
@@ -65,7 +60,7 @@ handle_info({timeout, Timer, {push, Interval, Retries}}, #state{timer = Timer} =
                               error_logger:info_msg(
                                 "statman_graphite: failed to push to graphite: ~p",
                                 [Reason]),
-                              self() ! {push, Interval, Retries+1},
+                              ok = gen_tcp:close(State#state.socket),
                               open_socket(State#state.graphite)
                       end,
     {noreply, State#state{socket = NewSocket, timer = NewTimer}};
