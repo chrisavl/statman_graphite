@@ -55,6 +55,7 @@ handle_info({push, _Interval, 3}, State) ->
     {noreply, State};
 
 handle_info({timeout, Timer, {push, Interval, Retries}}, #state{timer = Timer} = State) ->
+    NewTimer = erlang:start_timer(Interval, self(), {push, Interval, 0}),
     {ok, Metrics} = statman_aggregator:get_window(Interval div 1000),
     Serialized = serialize_metrics(State#state.prefix, filter(Metrics)),
     {ok, NewSocket} = case push(Serialized, State#state.socket) of
@@ -67,7 +68,7 @@ handle_info({timeout, Timer, {push, Interval, Retries}}, #state{timer = Timer} =
                               self() ! {push, Interval, Retries+1},
                               open_socket(State#state.graphite)
                       end,
-    {noreply, State#state{socket = NewSocket}};
+    {noreply, State#state{socket = NewSocket, timer = NewTimer}};
 
 handle_info(_Info, State) ->
     {noreply, State}.
