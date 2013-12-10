@@ -33,16 +33,14 @@ init([]) ->
     {ok, Host} = application:get_env(statman_graphite, host),
     {ok, Port} = application:get_env(statman_graphite, port),
     Timer = erlang:start_timer(Interval, self(), {push, Interval}),
-    {ok, Socket} = open_socket({Host, Port}),
     {ok, #state{timer = Timer,
                 prefix = Prefix,
                 graphite = {Host, Port},
-                socket = Socket}}.
+                socket = undefined}}.
 
 
-handle_call(_Request, _From, State) ->
-    Reply = ok,
-    {reply, Reply, State}.
+handle_call(get_timer, _From, State) ->
+    {reply, {ok, State#state.timer}, State}.
 
 
 handle_cast(_Msg, State) ->
@@ -51,27 +49,34 @@ handle_cast(_Msg, State) ->
 
 handle_info({timeout, Timer, {push, Interval}}, #state{timer = Timer} = State) ->
     NewTimer = erlang:start_timer(Interval, self(), {push, Interval}),
-    {ok, Metrics} = statman_aggregator:get_window(Interval div 1000),
-    Serialized = serialize_metrics(State#state.prefix, filter(Metrics)),
-    {ok, NewSocket} = case push(Serialized, State#state.socket) of
-                          ok ->
-                              {ok, State#state.socket};
-                          {error, Reason} ->
-                              error_logger:info_msg(
-                                "statman_graphite: failed to push to graphite: ~p",
-                                [Reason]),
-                              ok = gen_tcp:close(State#state.socket),
-                              open_socket(State#state.graphite)
-                      end,
-    {noreply, State#state{socket = NewSocket, timer = NewTimer}};
+    case maybe_connect(State#state.socket, State#state.graphite) of
+        {ok, Socket} ->
+            {ok, Metrics} = statman_aggregator:get_window(Interval div 1000),
+            Serialized = serialize_metrics(State#state.prefix, filter(Metrics)),
 
-handle_info(_Info, State) ->
+            case push(Serialized, Socket) of
+                ok ->
+                    {noreply, State#state{timer = NewTimer, socket = Socket}};
+                {error, Reason} ->
+                    error_logger:warningr_msg(
+                      "statman_graphite: failed to push to graphite: ~p",
+                      [Reason]),
+                    ok = gen_tcp:close(State#state.socket),
+                    {noreply, State#state{socket = undefined, timer = Timer}}
+            end;
+        {error, Reason} ->
+            error_logger:warning_msg(
+              "statman_graphite: failed to push to graphite: ~p",
+              [Reason]),
+            {noreply, State#state{socket = undefined, timer = Timer}}
+    end;
+
+handle_info(Info, State) ->
+    error_logger:info_msg("statman_graphite: got unexpected message: ~p~n", [Info]),
     {noreply, State}.
 
 
-terminate(_Reason, State) ->
-    _ = erlang:cancel_timer(State#state.timer),
-    ok = gen_tcp:close(State#state.socket),
+terminate(_Reason, _State) ->
     ok.
 
 
@@ -84,6 +89,12 @@ code_change(_OldVsn, State, _Extra) ->
 
 open_socket({Host, Port}) ->
     gen_tcp:connect(Host, Port, [{packet, 0}]).
+
+maybe_connect(undefined, {Host, Port}) ->
+    open_socket({Host, Port});
+maybe_connect(Socket, _) ->
+    {ok, Socket}.
+
 
 filter(Metrics) ->
     case application:get_env(statman_graphite, whitelist) of
@@ -181,6 +192,8 @@ push_test() ->
     ok = application:start(statman_graphite),
     ok = statman_server:add_subscriber(statman_aggregator),
     link(whereis(?MODULE)),
+    {ok, Timer} = gen_server:call(?MODULE, get_timer),
+    erlang:cancel_timer(Timer),
 
     statman_counter:incr({test, counter}, 42),
     statman_gauge:set({test, gauge}, 4711),
@@ -189,4 +202,5 @@ push_test() ->
     statman_server:report(),
     timer:sleep(100),
 
-    ?MODULE ! {push, 60000, 0}.
+    ?MODULE ! {timeout, Timer, {push, 60000}},
+    timer:sleep(1000).

@@ -10,11 +10,6 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-    ok = application:ensure_started(asn1),
-    ok = application:ensure_started(crypto),
-    ok = application:ensure_started(public_key),
-    ok = application:ensure_started(ssl),
-    ok = application:ensure_started(lhttpc),
     ok = application:ensure_started(statman),
 
     statman_graphite_sup:start_link().
