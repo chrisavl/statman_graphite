@@ -150,7 +150,7 @@ format_histogram(Metric) ->
 
 
 format_key(Key) ->
-    iolist_to_binary(format_key2(Key)).
+    sanitize(iolist_to_binary(format_key2(Key))).
 
 format_key2(Key) when is_integer(Key) ->
     [integer_to_list(Key)];
@@ -161,6 +161,9 @@ format_key2(Key) when is_atom(Key) ->
 format_key2(Key) when is_binary(Key) orelse is_list(Key) ->
     [Key].
 
+sanitize(Key) ->
+    binary:replace(binary:replace(Key, <<" ">>, <<"_">>, [global]),
+                   <<"/">>, <<".">>, [global]).
 
 number_to_binary(N) when is_float(N) ->
     iolist_to_binary(io_lib:format("~f", [N]));
@@ -177,6 +180,10 @@ push(Message, Socket) ->
 %% TEST
 %%
 
+format_key_test() ->
+    Key = {some, {<<"nested metric">>, "with/special/chars "}},
+    ?assertEqual(<<"some.nested_metric.with.special.chars_">>,
+                 format_key(Key)).
 
 set_test_env() ->
     application:set_env(statman_graphite, prefix, <<"myprefix">>),
