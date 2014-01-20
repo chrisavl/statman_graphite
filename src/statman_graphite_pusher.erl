@@ -58,7 +58,7 @@ handle_info({timeout, Timer, {push, Interval}}, #state{timer = Timer} = State) -
                 ok ->
                     {noreply, State#state{timer = NewTimer, socket = Socket}};
                 {error, Reason} ->
-                    error_logger:warningr_msg(
+                    error_logger:warning_msg(
                       "statman_graphite: failed to push to graphite: ~p",
                       [Reason]),
                     ok = gen_tcp:close(State#state.socket),
