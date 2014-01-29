@@ -10,8 +10,8 @@ graphite.
 You need to set the `host` and `port` application variables before starting
 the app. After that you just need to record some metrics with statman.
 
-    > application:set_env(statman_graphit, host, "graphite.example.com").
-    > application:set_env(statman_graphit, port, 2003).
+    > application:set_env(statman_graphite, host, "graphite.example.com").
+    > application:set_env(statman_graphite, port, 2003).
     > application:start(statman_graphite).
     > statman_aggregator:start_link().
     > record_some_statman_stats().
@@ -20,5 +20,5 @@ You can use the `prefix` application variable to set a global prefix that will
 be prepended to all metrics before they are send to graphite. This is useful
 in a multi-node scenario or when using something like [hostedgraphite.com](https://www.hostedgraphite.com).
 
-    > application:set_env(<<"my-api-key">>).
-    > application:set_env(<<"my-api-key.", (list_to_binary(atom_to_list(node())))/binary>>).
+    > application:set_env(statman_graphite, prefix, <<"my-api-key">>).
+    > application:set_env(statman_graphite, prefix, <<"my-api-key.", (list_to_binary(atom_to_list(node())))/binary>>).
