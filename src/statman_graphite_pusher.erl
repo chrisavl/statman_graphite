@@ -127,12 +127,14 @@ format_metric(Prefix, Metric) ->
 format_counter(Metric) ->
     Name = format_key(proplists:get_value(key, Metric)),
     Value = number_to_binary(proplists:get_value(value, Metric)),
-    <<Name/binary, " ", Value/binary>>.
+    Timestamp = number_to_binary(timestamp()),
+    <<Name/binary, " ", Value/binary, " ", Timestamp/binary>>.
 
 format_gauge(Metric) ->
     Name = format_key(proplists:get_value(key, Metric)),
     Value = number_to_binary(proplists:get_value(value, Metric)),
-    <<Name/binary, " ", Value/binary>>.
+    Timestamp = number_to_binary(timestamp()),
+    <<Name/binary, " ", Value/binary, " ", Timestamp/binary>>.
 
 format_histogram(Metric) ->
     Summary = statman_histogram:summary(proplists:get_value(value, Metric)),
@@ -142,7 +144,9 @@ format_histogram(Metric) ->
               Name = format_key({proplists:get_value(key, Metric), Percentile}),
               case proplists:get_value(Percentile, Summary) of
                   N when is_number(N) ->
-                      [<<Name/binary, " ", (number_to_binary(N))/binary>>];
+                      Timestamp = number_to_binary(timestamp()),
+                      [<<Name/binary, " ", (number_to_binary(N))/binary, " ",
+                        Timestamp/binary>>];
                   _ ->
                       []
               end
@@ -175,6 +179,11 @@ push([], _Socket) ->
     ok;
 push(Message, Socket) ->
     gen_tcp:send(Socket, Message).
+
+
+timestamp() ->
+    {MegaSeconds, Seconds, _} = os:timestamp(),
+    MegaSeconds * 1000000 + Seconds.
 
 %%
 %% TEST
