@@ -138,7 +138,7 @@ format_gauge(Metric) ->
 
 format_histogram(Metric) ->
     Summary = statman_histogram:summary(proplists:get_value(value, Metric)),
-    Percentiles = [p25, mean, p75, p95, p99, p999],
+    Percentiles = [min, p25, mean, median, p75, p95, p99, p999, max],
     lists:flatmap(
       fun (Percentile) ->
               Name = format_key({proplists:get_value(key, Metric), Percentile}),
