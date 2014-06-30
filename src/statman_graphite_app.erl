@@ -10,8 +10,6 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-    ok = application:ensure_started(statman),
-
     statman_graphite_sup:start_link().
 
 stop(_State) ->

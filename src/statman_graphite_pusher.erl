@@ -206,30 +206,3 @@ format_key_test() ->
     Key = {some, {<<"nested metric">>, "with/special/chars "}},
     ?assertEqual(<<"some.nested_metric.with.special.chars_">>,
                  format_key(Key)).
-
-set_test_env() ->
-    application:set_env(statman_graphite, prefix, <<"myprefix">>),
-    application:set_env(statman_graphite, host, "localhost"),
-    application:set_env(statman_graphite, port, 2003),
-    ok.
-
-%% You can test it against GNU netcat by running:
-%% $ nc -v -l -p 2003
-push_test() ->
-    ok = set_test_env(),
-    {ok, _Pid} = statman_aggregator:start_link(),
-    ok = application:start(statman_graphite),
-    ok = statman_server:add_subscriber(statman_aggregator),
-    link(whereis(?MODULE)),
-    {ok, Timer} = gen_server:call(?MODULE, get_timer),
-    erlang:cancel_timer(Timer),
-
-    statman_counter:incr({test, counter}, 42),
-    statman_gauge:set({test, gauge}, 4711),
-    statman_histogram:record_value({test, histogram}, 7),
-
-    statman_server:report(),
-    timer:sleep(100),
-
-    ?MODULE ! {timeout, Timer, {push, 60000}},
-    timer:sleep(1000).
