@@ -14,7 +14,7 @@
          terminate/2,
          code_change/3]).
 
--record(state, {timer, prefix, graphite, socket}).
+-record(state, {timer, prefix, graphite, socket, filtermapper}).
 
 %%%===================================================================
 %%% API
@@ -32,11 +32,20 @@ init([]) ->
     {ok, Prefix} = application:get_env(statman_graphite, prefix),
     {ok, Host} = application:get_env(statman_graphite, host),
     {ok, Port} = application:get_env(statman_graphite, port),
+    Filtermapper = case application:get_env(statman_graphite, filtermapper) of
+                       {ok, {M, F}} ->
+                           fun M:F/1;
+                       {ok, Fun} when is_function(Fun) ->
+                           Fun;
+                       undefined ->
+                           fun default_filtermapper/1
+                   end,
     Timer = erlang:start_timer(Interval, self(), {push, Interval}),
     {ok, #state{timer = Timer,
                 prefix = Prefix,
                 graphite = {Host, Port},
-                socket = undefined}}.
+                socket = undefined,
+                filtermapper = Filtermapper}}.
 
 
 handle_call(get_timer, _From, State) ->
@@ -52,7 +61,8 @@ handle_info({timeout, Timer, {push, Interval}}, #state{timer = Timer} = State) -
     case maybe_connect(State#state.socket, State#state.graphite) of
         {ok, Socket} ->
             {ok, Metrics} = statman_aggregator:get_window(Interval div 1000),
-            Serialized = serialize_metrics(State#state.prefix, filter(Metrics)),
+            Filtered = lists:filtermap(State#state.filtermapper, Metrics),
+            Serialized = serialize_metrics(State#state.prefix, Filtered),
 
             case push(Serialized, Socket) of
                 ok ->
@@ -95,15 +105,13 @@ maybe_connect(undefined, {Host, Port}) ->
 maybe_connect(Socket, _) ->
     {ok, Socket}.
 
-
-filter(Metrics) ->
+default_filtermapper(Metric) ->
     case application:get_env(statman_graphite, whitelist) of
         {ok, List} ->
-            [Metric || Metric <- Metrics,
-                       lists:member(proplists:get_value(key, Metric), List)];
+            lists:member(proplists:get_value(key, Metric), List);
         undefined ->
             %% Send all metrics if a whitelist is not configured
-            Metrics
+            true
     end.
 
 serialize_metrics(Prefix, Metrics) ->
