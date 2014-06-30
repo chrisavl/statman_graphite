@@ -29,7 +29,7 @@ start_link() ->
 
 init([]) ->
     Interval = application:get_env(statman_graphite, interval, 60000),
-    {ok, Prefix} = application:get_env(statman_graphite, prefix),
+    Prefix = application:get_env(statman_graphite, prefix, undefined),
     {ok, Host} = application:get_env(statman_graphite, host),
     {ok, Port} = application:get_env(statman_graphite, port),
     Filtermapper = case application:get_env(statman_graphite, filtermapper) of
@@ -122,15 +122,20 @@ serialize_metrics(Prefix, Metrics) ->
 format_metric(Prefix, Metric) ->
     case proplists:get_value(type, Metric) of
         counter ->
-            [<<Prefix/binary, $., (format_counter(Metric))/binary, $\n>>];
+            [<<(binary_prefix(Prefix))/binary, (format_counter(Metric))/binary, $\n>>];
         gauge ->
-            [<<Prefix/binary, $., (format_gauge(Metric))/binary, $\n>>];
+            [<<(binary_prefix(Prefix))/binary, (format_gauge(Metric))/binary, $\n>>];
         histogram ->
-            [<<Prefix/binary, $., Data/binary, $\n>>
+            [<<(binary_prefix(Prefix))/binary, Data/binary, $\n>>
              || Data <- format_histogram(Metric)];
         _ ->
             []
     end.
+
+binary_prefix(undefined) ->
+    <<>>;
+binary_prefix(B) when is_binary(B) ->
+    <<B/binary, $.>>.
 
 format_counter(Metric) ->
     Name = format_key(proplists:get_value(key, Metric)),
