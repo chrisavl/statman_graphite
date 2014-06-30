@@ -52,7 +52,7 @@ application:set_env(statman_graphite, filtermapper,
                               foo ->
                                   false;
                               bar ->
-                                  {true, baz};
+                                  {true, lists:keystore(key, 1, Metric, {key, baz})};
                               baz ->
                                   true
                           end
