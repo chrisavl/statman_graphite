@@ -59,6 +59,7 @@ simple(Socket) ->
     statman_histogram:record_value({test, histogram}, 7),
 
     statman_server:report(),
+    timer:sleep(500),
 
     {ok, Timer} = gen_server:call(statman_graphite_pusher, get_timer),
     pusher_pid() ! {timeout, Timer, {push, 60000}},
@@ -85,6 +86,7 @@ prefix(Socket) ->
     statman_histogram:record_value({test, histogram}, 7),
 
     statman_server:report(),
+    timer:sleep(500),
 
     {ok, Timer} = gen_server:call(statman_graphite_pusher, get_timer),
     pusher_pid() ! {timeout, Timer, {push, 60000}},
@@ -112,6 +114,7 @@ whitelist(Socket) ->
     statman_gauge:set(bar, 42),
 
     statman_server:report(),
+    timer:sleep(500),
 
     {ok, Timer} = gen_server:call(statman_graphite_pusher, get_timer),
     pusher_pid() ! {timeout, Timer, {push, 60000}},
@@ -131,6 +134,7 @@ filtermapper(Socket) ->
     statman_gauge:set(foo, 42),
 
     statman_server:report(),
+    timer:sleep(500),
 
     {ok, Timer} = gen_server:call(statman_graphite_pusher, get_timer),
     pusher_pid() ! {timeout, Timer, {push, 60000}},
