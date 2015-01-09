@@ -58,28 +58,25 @@ handle_cast(_Msg, State) ->
 
 handle_info({timeout, Timer, {push, Interval}}, #state{timer = Timer} = State) ->
     NewTimer = erlang:start_timer(Interval, self(), {push, Interval}),
-    case maybe_connect(State#state.socket, State#state.graphite) of
-        {ok, Socket} ->
-            {ok, Metrics} = statman_aggregator:get_window(Interval div 1000),
-            Filtered = lists:filtermap(State#state.filtermapper, Metrics),
-            Serialized = serialize_metrics(State#state.prefix, Filtered),
-
-            case push(Serialized, Socket) of
-                ok ->
-                    {noreply, State#state{timer = NewTimer, socket = Socket}};
-                {error, Reason} ->
-                    error_logger:warning_msg(
-                      "statman_graphite: failed to push to graphite: ~p",
-                      [Reason]),
-                    ok = gen_tcp:close(State#state.socket),
-                    {noreply, State#state{socket = undefined, timer = NewTimer}}
-            end;
+    {ok, Metrics} = statman_aggregator:get_window(Interval div 1000),
+    Filtered = lists:filtermap(State#state.filtermapper, Metrics),
+    Serialized = serialize_metrics(State#state.prefix, Filtered),
+    case push(Serialized, State#state.socket, State#state.graphite, 3) of
+        {ok, NewSocket} ->
+            {noreply, State#state{timer = NewTimer, socket = NewSocket}};
         {error, Reason} ->
             error_logger:warning_msg(
               "statman_graphite: failed to push to graphite: ~p",
               [Reason]),
-            {noreply, State#state{socket = undefined, timer = NewTimer}}
+            ok = gen_tcp:close(State#state.socket),
+            {noreply, State#state{timer = NewTimer}}
     end;
+
+handle_info({tcp_closed, Socket}, State = #state{socket = Socket}) ->
+    {noreply, State#state{socket = undefined}};
+
+handle_info({tcp_closed, _OtherSocket}, State) ->
+    {noreply, State};
 
 handle_info(Info, State) ->
     error_logger:info_msg("statman_graphite: got unexpected message: ~p~n", [Info]),
@@ -96,6 +93,22 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+push(_Message, _Socket, _Graphite, Tries) when Tries =< 0 ->
+    {error, max_tries};
+push([], Socket, _Graphite, _Tries) ->
+    {ok, Socket};
+push(Message, Socket, Graphite, Tries) ->
+    case maybe_connect(Socket, Graphite) of
+        {ok, NewSocket} ->
+            case gen_tcp:send(NewSocket, Message) of
+                ok              -> {ok, NewSocket};
+                {error, closed} -> push(Message, undefined, Graphite, Tries-1);
+                {error, Reason} -> {error, Reason}
+            end;
+        {error, Reason} ->
+            {error, Reason}
+    end.
 
 open_socket({Host, Port}) ->
     gen_tcp:connect(Host, Port, [{packet, 0}]).
@@ -186,12 +199,6 @@ number_to_binary(N) when is_float(N) ->
     iolist_to_binary(io_lib:format("~f", [N]));
 number_to_binary(N) when is_integer(N) ->
     list_to_binary(integer_to_list(N)).
-
-
-push([], _Socket) ->
-    ok;
-push(Message, Socket) ->
-    gen_tcp:send(Socket, Message).
 
 
 timestamp() ->
